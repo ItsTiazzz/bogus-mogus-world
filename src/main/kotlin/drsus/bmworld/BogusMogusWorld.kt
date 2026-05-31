@@ -4,8 +4,8 @@ import net.fabricmc.api.ModInitializer
 import org.slf4j.LoggerFactory
 
 object BogusMogusWorld : ModInitializer {
-    private val logger = LoggerFactory.getLogger("bogus-mogus-world")
-    private val mod_id = "bogusmogusworld"
+    val logger = LoggerFactory.getLogger("bogus-mogus-world")
+    val mod_id = "bogusmogusworld"
 
 
     override fun onInitialize() {
