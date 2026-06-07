@@ -1,9 +1,14 @@
 package drsus.bmworld.entities
 
+import drsus.bmworld.BogusMogusWorld.logger
 import net.minecraft.core.BlockPos
 import net.minecraft.network.syncher.EntityDataAccessor
 import net.minecraft.network.syncher.EntityDataSerializers
 import net.minecraft.network.syncher.SynchedEntityData
+import net.minecraft.server.level.ServerLevel
+import net.minecraft.sounds.SoundSource
+import net.minecraft.world.InteractionHand
+import net.minecraft.world.InteractionResult
 import net.minecraft.world.entity.AnimationState
 import net.minecraft.world.entity.EntityType
 import net.minecraft.world.entity.PathfinderMob
@@ -14,8 +19,10 @@ import net.minecraft.world.entity.player.Player
 import net.minecraft.world.item.Items
 import net.minecraft.world.item.crafting.Ingredient
 import net.minecraft.world.level.Level
+import net.minecraft.world.level.gameevent.GameEvent
 import net.minecraft.world.level.storage.ValueInput
 import net.minecraft.world.level.storage.ValueOutput
+import kotlin.jvm.optionals.getOrElse
 import kotlin.random.Random
 
 
@@ -31,7 +38,7 @@ class SkullCrawlerEntity(entityType: EntityType<out PathfinderMob>, world: Level
 
         fun createCubeAttributes(): AttributeSupplier.Builder {
 
-            return PathfinderMob.createMobAttributes()
+            return createMobAttributes()
                 .add(Attributes.MAX_HEALTH, 20.00)
                 .add(Attributes.SCALE, Random.nextDouble(0.90, 1.10))
                 .add(Attributes.MOVEMENT_SPEED, 0.22)
@@ -49,46 +56,49 @@ class SkullCrawlerEntity(entityType: EntityType<out PathfinderMob>, world: Level
     }
 
     fun isDancing(): Boolean {
-        return entityData.get<Boolean>(dancing)
+        return entityData.get(dancing)
     }
 
 
     override fun defineSynchedData(builder: SynchedEntityData.Builder) {
         super.defineSynchedData(builder)
-        builder.define<Boolean>(dancing, false)
-    }
-
-
-    private fun setupAnimationStates() {
-        if (dancingTimeLeft>=100) {
-            this.dancingAnimationState.start(this.tickCount)
-            this.dancingTimeLeft=99
-        }
-
-        // if (this.dancingTimeLeft >= 0) {
-        //     dancingTimeLeft--
-        //     this.dancingAnimationState.start(this.tickCount)
-        // } else this.dancingAnimationState.stop()
+        builder.define(dancing, false)
     }
 
     private fun setDancing(dancing: Boolean) {
-        entityData.set<Boolean>(Companion.dancing, dancing)
+        entityData.set(Companion.dancing, dancing)
     }
 
     override fun updateWalkAnimation(f: Float) {
         super.updateWalkAnimation(f)
     }
-    override fun setRecordPlayingNearby(blockPos: BlockPos, bl: Boolean) {
-        this.jukebox = blockPos
-        setDancing(true)
-        this.dancingTimeLeft=100
-        dancingAnimationState.start(this.tickCount)
+
+    override fun mobInteract(player: Player, interactionHand: InteractionHand): InteractionResult {
+        val itemStack = player.getItemInHand(interactionHand)
+        if (itemStack.`is`(Items.WHEAT)) {
+            val var5 = this.level()
+            if (var5 is ServerLevel) {
+                setDancing(true)
+                this.dancingTimeLeft = 100
+                dancingAnimationState.start(this.tickCount)
+            }
+            return InteractionResult.CONSUME
+        } else {
+            return super.mobInteract(player, interactionHand)
+        }
     }
+
     override fun tick() {
         super.tick()
 
-        if (!level().isClientSide()) {
-            this.setupAnimationStates()
+        if (!level().isClientSide) {
+            logger.info("[World] Dancing: ${isDancing()}, ticks: ${this.tickCount}, left: $dancingTimeLeft")
+            if (isDancing()) {
+                logger.info(dancingTimeLeft.toString())
+                if (dancingTimeLeft-- <= 0) {
+                    setDancing(false)
+                }
+            }
         }
     }
 
@@ -99,8 +109,15 @@ class SkullCrawlerEntity(entityType: EntityType<out PathfinderMob>, world: Level
 
     override fun readAdditionalSaveData(valueInput: ValueInput) {
         super.readAdditionalSaveData(valueInput)
-        dancingTimeLeft = valueInput.getInt("dancing_time_left").orElse(0)
-        setDancing(dancingTimeLeft > 0)
+        dancingTimeLeft = valueInput.getInt("dancing_time_left").getOrElse { 0 }
     }
 
+    override fun onSyncedDataUpdated(entityDataAccessor: EntityDataAccessor<*>) {
+        super.onSyncedDataUpdated(entityDataAccessor)
+
+        if (entityDataAccessor == dancing) {
+            logger.info("[Data changed] Dancing: ${isDancing()}, ticks: ${this.tickCount}, left: $dancingTimeLeft")
+            dancingAnimationState.animateWhen(isDancing(), this.tickCount)
+        }
+    }
 }

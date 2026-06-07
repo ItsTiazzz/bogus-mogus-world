@@ -25,5 +25,15 @@ class SkullCrawlerEntityRenderer(context: EntityRendererProvider.Context) :
         private val TEXTURE: Identifier =
             Identifier.fromNamespaceAndPath(BogusMogusWorld.mod_id, "textures/entity/skullcrawler.png")
     }
+
+    override fun extractRenderState(
+        livingEntity: SkullCrawlerEntity,
+        livingEntityRenderState: SkullCrawlerEntityRenderState,
+        f: Float
+    ) {
+        super.extractRenderState(livingEntity, livingEntityRenderState, f)
+        livingEntityRenderState.dancingAnimationState.copyFrom(livingEntity.dancingAnimationState)
+        livingEntityRenderState.walkingAnimationState.copyFrom(livingEntity.walkingAnimationState)
+    }
 }
 
